@@ -1,0 +1,37 @@
+.venv
+n
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# ADK specific
+.adk/
+adk_logs/
+*.log
+*.sqlite
+*.db
+
+# Cloud Shell / GCP specific
+.gcloud/
+.config/
+.bash_history
+.ssh/
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
