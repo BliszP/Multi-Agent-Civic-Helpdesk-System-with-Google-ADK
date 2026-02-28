@@ -108,7 +108,7 @@ source ~/.bashrc
 ## 6. Run the Multi-Agent System
 
 ```bash
-uv run adk web multi_agents --port 8000
+uv run adk web
 ```
 
 Then in Cloud Shell, click **Web Preview** → **Preview on port 8000** to open the ADK UI in your browser.
@@ -202,3 +202,4 @@ Document:
 ## License
 
 Apache 2.0
+
