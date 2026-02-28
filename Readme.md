@@ -1,112 +1,204 @@
 # Multi-Agent Civic Helpdesk System with Google ADK
 
-This document details the setup, challenges, and solutions encountered while building a multi-agent civic helpdesk system using the Google Agent Development Kit (ADK) within a Google Cloud Shell environment.
+A multi-agent civic helpdesk built with the Google Agent Development Kit (ADK), featuring an Orchestrator Agent that classifies and routes requests to domain-specific Specialist Agents (Waste, Parking, Housing). All agents are defined using YAML configuration files and run entirely in Google Cloud Shell.
 
-## 1. Introduction
+---
 
-The goal was to create a multi-agent system consisting of an **Orchestrator Agent** and several **Specialist Agents** (Waste, Parking, Housing) to handle civic inquiries. The Orchestrator is responsible for classifying user requests, routing them to the appropriate specialist, merging responses, and handling general inquiries or emergencies directly. All agents were to be defined using YAML files, adhering to Cloud-Only Execution Rules.
+## Project Structure
 
-## 2. Project Setup
-
-The project was initialized in Google Cloud Shell. A directory structure was established as follows:
-
+```
 service-concierge-agent/
 ├── agent/
-│ ├── init .py
-│ └── agent.py # (Initially used for single agent, later replaced by multi_agents/root_agent.yaml)
+│   ├── __init__.py
+│   └── agent.py
 └── multi_agents/
-├── root_agent.yaml # Orchestrator Agent (originally orchestrator.yaml)
-├── waste_specialist.yaml
-├── parking_specialist.yaml
-└── housing_specialist.yaml
+    ├── root_agent.yaml          # Orchestrator (entry point)
+    ├── waste_specialist.yaml
+    ├── parking_specialist.yaml
+    └── housing_specialist.yaml
+```
 
+---
 
-### Initial Agent Definition (`agent/agent.py`)
+## Prerequisites
 
-Initially, a single `service_concierge` agent was defined in `agent/agent.py` to demonstrate basic agent functionality and tool integration (`get_current_time`).
+- Google Cloud account with a project created
+- Google Cloud Shell (browser-based terminal)
+- Gemini API key from Google AI Studio
 
-### Multi-Agent System Definition (`multi_agents/` directory)
+---
 
-YAML files were created for each agent:
-*   **`orchestrator.yaml` (later renamed to `root_agent.yaml`):** Defines the orchestrator's role, classification categories, routing logic, and expected output structure. It includes an `invoke_agent` tool to call specialist agents.
-*   **`waste_specialist.yaml`:** Handles waste management inquiries, providing structured responses or escalating if out of scope.
-*   **`parking_specialist.yaml`:** Handles parking-related inquiries, providing structured responses or escalating if out of scope.
-*   **`housing_specialist.yaml`:** Handles housing-related inquiries, providing structured responses or escalating if out of scope.
+## 1. Create & Configure Your Google Cloud Project
 
-## 3. Challenges & Solutions
+### 1.1 Create a Project in Google Cloud Console
 
-Several challenges were encountered during the setup and configuration of the ADK multi-agent system.
+1. Go to [https://console.cloud.google.com](https://console.cloud.google.com)
+2. Click the project dropdown at the top → **New Project**
+3. Enter a project name (e.g. `civic-helpdesk`) → **Create**
+4. Note your **Project ID** (e.g. `civic-helpdesk-123456`)
 
-### Challenge 1: ADK Web UI Not Showing Agent (Initial `service_concierge` Agent)
+### 1.2 Enable Required APIs
 
-**Problem:** After defining the `service_concierge` agent in `agent/agent.py`, the ADK web UI did not display it. The `uv run adk web` command was used, but the agent was not visible.
+In Cloud Shell or the Console terminal, run:
 
-**Root Cause:** The `__init__.py` file in the `agent` directory was not correctly exposing the `root_agent` instance for the ADK framework to discover. The ADK web UI expects a list of agent instances named `agents` in `__init__.py`.
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud services enable aiplatform.googleapis.com
+```
 
-**Solution:** Modified `agent/__init__.py` to explicitly import `root_agent` from `agent.py` and assign it to an `agents` list:
+---
 
-```python
-# agent/__init__.py
-from .agent import root_agent
+## 2. Get Your Gemini API Key from Google AI Studio
 
-agents = [root_agent]
+This is how you connect your Cloud project to the Gemini model your agents will use.
 
+1. Go to [https://aistudio.google.com](https://aistudio.google.com)
+2. Click **Sign in** — use the **same Google account** as your Cloud project
+3. In the top-right corner, click **Get API Key**
+4. Click **Create API key in existing project**
+5. Select your project from the dropdown (e.g. `civic-helpdesk-123456`)
+6. Click **Create API key** — copy and save the key securely
 
-Challenge 2: Persistent "Not Showing" / Cloud Console Confusion
-Problem: Despite correcting __init__.py , the user repeatedly reported the agent was "still not showing" and was viewing the "IAM & Admin" page in the Google Cloud Console.
+> ⚠️ Never commit your API key to GitHub. Store it as an environment variable (see Step 5).
 
-Root Cause: The user was mistakenly looking at the Google Cloud Console instead of the separate browser tab/window where the ADK web interface loads. There was a misunderstanding of how the Cloud Shell "Web Preview" functions.
+---
 
-Solution: Repeated and detailed instructions were provided on how to:
+## 3. Clone the Repository in Google Cloud Shell
 
-Ensure uv run adk web was running.
-Click the "Web Preview" button in Cloud Shell.
-Select "Preview on port 8000" to open the ADK web interface in a new browser tab .
-Challenge 3: ValueError: No root_agent found for 'multi_agents'
-Problem: When attempting to load the multi-agent system using uv run adk web multi_agents --port 8000 , an error occurred: ValueError: No root_agent found for 'multi_agents'. Searched in 'multi_agents.agent.root_agent', 'multi_agents.root_agent' and 'multi_agents/root_agent.yaml'.
+Open [Google Cloud Shell](https://shell.cloud.google.com) and run:
 
-Root Cause: The adk web <DIRECTORY> command expects the specified directory to contain either a file named root_agent.yaml or a Python file (e.g., agent.py ) that defines a root_agent variable. The orchestrator agent's YAML file was named orchestrator.yaml , which did not match ADK's expected entry point naming convention for a directory-based load.
+```bash
+git clone https://github.com/BliszP/Multi-Agent-Civic-Helpdesk-System-with-Google-ADK.git
+cd Multi-Agent-Civic-Helpdesk-System-with-Google-ADK
+```
 
-Solution: Renamed the orchestrator agent's YAML file from multi_agents/orchestrator.yaml to multi_agents/root_agent.yaml . This allowed the adk web multi_agents command to correctly identify and load the orchestrator as the primary agent.
+---
 
-Challenge 4: Orchestrator Not Returning Specialist Response
-Problem: After successfully loading the orchestrator, when a query like "My recycling wasn’t collected. What do I do?" was given, the orchestrator's response in the ADK UI was merely: ``waste_specialist with query: "My recycling wasn’t collected. What do I do?" , instead of the actual structured response from the `waste_specialist`.
+## 4. Install Dependencies
 
-Root Cause: The orchestrator's instruction was designed to identify the specialist and indicate the routing, but it lacked the explicit mechanism (a tool) to invoke that specialist and then return its output. The orchestrator was simply stating its intention rather than executing it.
+This project uses `uv` as the Python package manager:
 
-Solution:
+```bash
+# Install uv if not already available
+pip install uv
 
-Added an invoke_agent tool to the root_agent.yaml (orchestrator's definition). This tool allows the orchestrator to programmatically call other agents.
-tools:
-  - name: invoke_agent
-    description: Call another agent by its name and pass a query to it.
-    parameters:
-      type: object
-      properties:
-        agent_name:
-          type: string
-          description: The name of the agent to invoke (e.g., "waste_specialist", "parking_specialist", "housing_specialist").
-        query:
-          type: string
-          description: The query or message to pass to the invoked agent.
-      required:
-        - agent_name
-        - query
+# Initialise the project and install google-adk
+uv init
+uv add google-adk
+```
 
+---
 
-Updated the orchestrator's instruction to explicitly use the invoke_agent tool when routing to a specialist and to return the specialist's response.
-4. Current State
-The multi-agent system is now configured with:
+## 5. Set Your API Key
 
-An orchestrator agent (defined in multi_agents/root_agent.yaml ) capable of classifying requests, routing to specialists using the invoke_agent tool, handling general inquiries, and responding to emergencies.
-Three specialist agents ( waste_specialist , parking_specialist , housing_specialist ) (defined in their respective YAML files in multi_agents/ ) that handle domain-specific queries and escalate out-of-scope requests.
-The system is runnable via uv run adk web multi_agents --port 8000 from the project root.
-5. Next Steps
-The following tasks remain to be completed:
+```bash
+export GOOGLE_API_KEY="your_gemini_api_key_here"
+```
 
-Test Scenarios: Execute and verify all five required test scenarios in the ADK web UI, capturing screenshots for correct routing, clarifying questions, and final responses.
-Mandatory Debugging Exercise: Intentionally introduce and fix one failure (e.g., YAML indentation error, incorrect routing logic), documenting the failure, trace, root cause, exact change, and successful re-run.
+To make this persist across Cloud Shell sessions, add it to your shell profile:
 
+```bash
+echo 'export GOOGLE_API_KEY="your_gemini_api_key_here"' >> ~/.bashrc
+source ~/.bashrc
+```
 
-<!--<serializedDesign>{}</serializedDesign>-->
+---
 
+## 6. Run the Multi-Agent System
+
+```bash
+uv run adk web
+```
+
+Then in Cloud Shell, click **Web Preview** → **Preview on port 8000** to open the ADK UI in your browser.
+
+> ℹ️ The ADK framework discovers the orchestrator automatically because the entry point is named `root_agent.yaml`. Any other name will cause a `ValueError: No root_agent found` error.
+
+---
+
+## 7. Agent Architecture
+
+### Orchestrator (`root_agent.yaml`)
+
+The central router. Classifies every incoming request into one of five categories and acts accordingly:
+
+| Category | Action |
+|---|---|
+| Waste Management | Transfers to `waste_specialist` |
+| Parking | Transfers to `parking_specialist` |
+| Housing | Transfers to `housing_specialist` |
+| General Inquiry | Handles directly, asks for clarification |
+| Emergency / Safety | Responds with emergency escalation, no transfer |
+
+Sub-agents are registered using the `sub_agents` field with `config_path` references — the correct ADK YAML pattern for multi-agent routing:
+
+```yaml
+sub_agents:
+  - config_path: waste_specialist.yaml
+  - config_path: parking_specialist.yaml
+  - config_path: housing_specialist.yaml
+```
+
+> ⚠️ Do not use a custom `invoke_agent` function tool — ADK does not permit `description` or `parameters` as extra fields inside a `function` tool entry in YAML (`extra_forbidden` Pydantic error). Use `sub_agents` instead; ADK auto-generates transfer tools from them.
+
+### Specialist Agents
+
+Each specialist handles one domain and returns a structured response:
+
+```
+Summary:
+What I need from you:
+Steps to resolve:
+Edge cases / warnings:
+Next possible help:
+```
+
+If a query is out of scope, specialists escalate back to the orchestrator.
+
+---
+
+## 8. Test Scenarios
+
+Run each scenario in the ADK web UI and capture the Trace/Events panel as evidence.
+
+| # | Input | Expected Routing | Expected Behaviour |
+|---|---|---|---|
+| 1 | `My recycling wasn't collected. What do I do?` | `waste_specialist` | Structured missed collection response |
+| 2 | `How do I apply for a resident parking permit?` | `parking_specialist` | Structured permit application steps |
+| 3 | `There is damp and mould in my council flat.` | `housing_specialist` | Structured damp/mould reporting steps |
+| 4 | `I got a letter from the council and I don't understand it.` | None (orchestrator handles) | Clarifying questions, no specialist call |
+| 5 | `Someone is in danger.` | None (orchestrator handles) | Emergency escalation language, no specialist call |
+
+---
+
+## 9. Mandatory Debugging Exercise
+
+Intentionally introduce one failure, document it, fix it, and re-run.
+
+**Example failure to introduce:** Add an incorrect indentation in `root_agent.yaml` under `sub_agents`.
+
+Document:
+- The exact change made
+- The error trace produced
+- The root cause identified
+- The exact fix applied
+- Screenshot of successful re-run
+
+---
+
+## 10. Known Challenges & Solutions
+
+| Challenge | Root Cause | Solution |
+|---|---|---|
+| Agent not visible in ADK UI | `__init__.py` not exposing `root_agent` correctly | Added `from .agent import root_agent` and `agents = [root_agent]` |
+| `ValueError: No root_agent found` | Orchestrator YAML was named `orchestrator.yaml` | Renamed to `root_agent.yaml` |
+| `extra_forbidden` Pydantic error on `tools` | ADK YAML does not allow `description`/`parameters` inside `function` tool blocks | Removed custom tool; used `sub_agents` with `config_path` instead |
+| `agent_refs` field rejected | `agent_refs` is not a valid `AgentConfig` field | Replaced with `sub_agents` |
+| Git push rejected (non-fast-forward) | Remote had commits (auto-created README) not in local history | Used `git pull origin main --allow-unrelated-histories` then pushed |
+
+---
+
+## License
+
+Apache 2.0
